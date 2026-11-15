@@ -19,6 +19,7 @@ use crate::display::DisplayPage;
 use crate::files::FilesPage;
 use crate::lastdevice::{self, LastDevice};
 use crate::lifecycle::{self, Daemon};
+use crate::messages::MessagesPage;
 use crate::mirror::{Exit, Mirror};
 use crate::tray;
 
@@ -55,6 +56,7 @@ pub struct Ui {
     display: Rc<DisplayPage>,
     cross: Rc<CrossControlPage>,
     files: Rc<FilesPage>,
+    messages: Rc<MessagesPage>,
     /// The system-tray item, when the desktop has a StatusNotifierHost.
     tray: RefCell<Option<tray::Tray>>,
     /// Tracks how the daemon is running, so Quit stops the right thing.
@@ -580,10 +582,12 @@ impl Ui {
         let display_clamp = adw::Clamp::builder().maximum_size(1100).tightening_threshold(1100).child(&display_column).build();
         let display_w = gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).vexpand(true).child(&display_clamp).build();
         let (files, files_w) = FilesPage::build(&toasts);
+        let (messages, messages_w) = MessagesPage::build();
         views.add_titled_with_icon(&phone_w, Some("phone"), "Phone", "phone-symbolic");
         views.add_titled_with_icon(&apps_w, Some("apps"), "Apps", "view-app-grid-symbolic");
         views.add_titled_with_icon(&display_w, Some("display"), "Display", "video-display-symbolic");
         views.add_titled_with_icon(&files_w, Some("files"), "Files", "folder-symbolic");
+        views.add_titled_with_icon(&messages_w, Some("messages"), "Messages", "mail-message-new-symbolic");
         let notif_page = views.add_titled_with_icon(&notifs_w, Some("notifications"), "Notifications", "preferences-system-notifications-symbolic");
 
         let (down_page, down) = DownPage::build();
@@ -647,6 +651,7 @@ impl Ui {
             display,
             cross,
             files,
+            messages,
             tray: RefCell::default(),
             daemon_ctl: RefCell::default(),
             state: RefCell::new(State { last: lastdevice::load(), ..State::default() }),
@@ -664,8 +669,15 @@ impl Ui {
             match name.as_deref() {
                 Some("apps") => ui.apps.shown(),
                 Some("display") => ui.cross.refresh(),
+                Some("messages") => ui.messages.refresh(),
                 Some("notifications") => ui.load_muted(),
                 _ => {}
+            }
+        });
+        let weak = Rc::downgrade(&ui);
+        ui.messages.refresh.connect_clicked(move |_| {
+            if let Some(ui) = weak.upgrade() {
+                ui.messages.refresh();
             }
         });
         let weak = Rc::downgrade(&ui);

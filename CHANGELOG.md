@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The READM
 
 ## [Unreleased]
 
+### Added
+
+- GTK **Messages** page: fetches the daemon's in-memory SMS conversations only on refresh, opens threads, sends through phone service 204, and marks received messages read. It never writes SMS content to disk.
+
 ### Fixed
 
 - Clipboard Linux → phone on GNOME: GNOME has no data-control protocol, so `wl-paste --watch` refused to run and copies on the PC never reached the phone. The daemon now follows the clipboard through Xwayland (XFixes) there; password-manager copies are still skipped.

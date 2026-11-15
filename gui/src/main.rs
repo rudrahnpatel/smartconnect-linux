@@ -4,6 +4,7 @@ mod apps;
 mod daemon;
 mod crosscontrol;
 mod display;
+mod messages;
 mod files;
 mod icons;
 mod lastdevice;
