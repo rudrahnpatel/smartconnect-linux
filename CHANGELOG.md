@@ -10,6 +10,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The READM
 
 ### Fixed
 
+- Reject incoming clipboard image clips with missing/invalid file size or file attributes before issuing PULL; enforce a non-zero size within the 10 MiB limit.
+
+### Changed
+
+- Document clipboard image sync as implemented but not yet verified on a real phone; separate unsupported non-image file clips from image sync.
+
 - Clipboard Linux → phone on GNOME: GNOME has no data-control protocol, so `wl-paste --watch` refused to run and copies on the PC never reached the phone. The daemon now follows the clipboard through Xwayland (XFixes) there; password-manager copies are still skipped.
 - Phone display lag: frames are now converted and scaled on the GPU (VA-API `vapostproc`; multi-threaded on the CPU otherwise) and the encoder runs in its own thread. Before, 60 fps did not fit the per-frame time and frames queued up (measured on the PC: 53 ms → 21 ms per frame, no more dropped frames).
 - GTK Display tab: the settings groups no longer leave empty space below them.

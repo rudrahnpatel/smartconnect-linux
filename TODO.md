@@ -34,14 +34,17 @@ and [docs/](docs/) for details.
     `statfs` probe in the helper, the GTK app and the plugin). Left: the daemon spawning/supervising
     `smartconnect-files` itself (auto-mount without a front-end), and verifying the reconnect against
     a real phone (tested end to end against this crate's own NFS-over-TLS server).
-- **Clipboard images and files.** Control plane understood (service 9 file-list + PULL); the daemon
-  now recognises an incoming image/file clip but does not fetch it yet. The bytes move over **fex**
-  (service 2), which is now fully reverse-engineered and implemented for app icons: TLS pinned to
-  the advertised fingerprint, a WebSocket of `action`/`ack` text frames, `GET /download` of a zip,
-  `status` type 1 (see `docs/protocol/file-exchange.md` §3; the X25519/HKDF/Ed25519 crypto in the
-  older notes is the cloud path, not the LAN one). Left: send PULL for an image clip, catch the
-  service 2 `FileExSendData`, pull it with `smartconnect_fex::client::pull` (check whether clipboard
-  sends use the zip mode or the per-file `/downloadFile` mode), and put the image on the clipboard.
+- **Clipboard images and files.** Clipboard image transfer is implemented in both directions over
+  fex (service 2), but still needs real-phone verification. The Linux watcher accepts PNG, JPEG,
+  WebP, GIF and BMP. Non-image file clipboard transfers remain unsupported. Improve the UI and test
+  both directions on supported phones/desktops; retain the 10 MiB cap and password-manager exclusion.
+  The fex client pins the advertised TLS fingerprint and pulls a zip over HTTPS after its WebSocket
+  action/ack exchange (see `docs/protocol/file-exchange.md` §3).
+
+- **Incoming image metadata validation.** Reject malformed or incomplete file entries before PULL:
+  require a regular-file attribute and a known, non-zero size within the phone's 10 MiB limit.
+  Regression tests cover missing fields and empty images.
+
 - **Send and receive single files (fex).** The fex client can pull an offer (`smartconnect-fex
   pull`), but there's no way to send a file to the phone or to accept one the phone sends, and no UI.
 
