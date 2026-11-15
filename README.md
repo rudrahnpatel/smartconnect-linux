@@ -118,7 +118,7 @@ Noctalia Shell on Arch Linux. Other phones, app versions and desktops may behave
 | Per-app notification mute | 🟡 | A mute toggle on each notification and a *Muted apps* list, in the GTK app and the Noctalia plugin. |
 | Clipboard text, both ways | ✅ | Password-manager copies are never sent to the phone. |
 | Clipboard images and files | ❌ | Protocol reconstructed ([file-exchange.md](docs/protocol/file-exchange.md), [clipboard.md](docs/protocol/clipboard.md)). The daemon recognises an incoming image/file clip; the fex client it needs exists but is not wired to clipboard clips yet. |
-| SMS (read threads, send, mark read) | 🟡 | Control socket only, no UI yet. Needs enabling on the phone. |
+| SMS (read threads, send, mark read) | 🟡 | GTK **Messages** page lists in-memory threads, opens conversations, sends SMS, and marks received messages read. Needs enabling on phone; not yet verified on a real device. |
 
 **Mirroring and app streaming**
 
