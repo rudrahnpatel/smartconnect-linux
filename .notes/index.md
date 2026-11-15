@@ -50,3 +50,4 @@ published. The public protocol reference is [`docs/protocol/`](../docs/protocol/
 - [display-any-desktop.md](display-any-desktop.md) — phone-as-display on GNOME, KDE, Hyprland, sway and niri: per-desktop capture/extend/input backends, --list-outputs
 - [cross-control-modes-page.md](cross-control-modes-page.md) — Cross Control modes at the top of the GTK Display tab (merged 2026-10-25): the three Windows modes (shared mouse/keyboard, Duplicate, Extend via the Display page), drag-the-phone position editor saved to `crosscontrol.json` (edge + span) that crosscontrol reads; tile tap brings the page forward
 - [appimage.md](appimage.md) — AppImage for any distribution (Arch + quick-sharun, everything bundled), first-run Set up window, --install/--uninstall, pairing-window firewall hint
+- [clipboard-image-validation.md](clipboard-image-validation.md) — clipboard image sync status and strict incoming file metadata validation before PULL; real-phone test still pending.

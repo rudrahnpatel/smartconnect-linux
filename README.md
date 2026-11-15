@@ -117,7 +117,8 @@ Noctalia Shell on Arch Linux. Other phones, app versions and desktops may behave
 | Notification dedupe, coalescing and themed icons | 🟡 | |
 | Per-app notification mute | 🟡 | A mute toggle on each notification and a *Muted apps* list, in the GTK app and the Noctalia plugin. |
 | Clipboard text, both ways | ✅ | Password-manager copies are never sent to the phone. |
-| Clipboard images and files | ❌ | Protocol reconstructed ([file-exchange.md](docs/protocol/file-exchange.md), [clipboard.md](docs/protocol/clipboard.md)). The daemon recognises an incoming image/file clip; the fex client it needs exists but is not wired to clipboard clips yet. |
+| Clipboard images (PNG, JPEG, WebP, GIF, BMP) | 🟡 | Image clipboard sync is implemented both ways over fex, limited to 10 MB. Not yet verified on a real phone; HEIC/TIFF inputs and non-image file clipboard transfers are not supported. Password-manager copies remain excluded. |
+| Clipboard files (non-image) | ❌ | File clips are recognized but not transferred. Single-file send/receive UI is not implemented. |
 | SMS (read threads, send, mark read) | 🟡 | Control socket only, no UI yet. Needs enabling on the phone. |
 
 **Mirroring and app streaming**

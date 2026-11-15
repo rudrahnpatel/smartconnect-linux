@@ -545,9 +545,10 @@ fn image_clip_id(data: &Value) -> Option<i64> {
     let list = data.get("filelist").or_else(|| data.get("fileList"))?.as_array()?;
     let [file] = list.as_slice() else { return None };
     let name = file.get("name").and_then(Value::as_str)?;
-    let size = file.get("size").and_then(Value::as_u64).unwrap_or(0);
-    let regular = file.get("attr").and_then(Value::as_i64).unwrap_or(128) != 16;
-    (regular && is_image_name(name) && size as usize <= MAX_IMAGE_BYTES)
+    // Incomplete or malformed metadata must never turn an unknown-size transfer into an image.
+    let size = usize::try_from(file.get("size").and_then(Value::as_u64)?).ok()?;
+    let regular = file.get("attr").and_then(Value::as_i64) == Some(128);
+    (regular && is_image_name(name) && (1..=MAX_IMAGE_BYTES).contains(&size))
         .then(|| data.get("clipId").and_then(Value::as_i64))
         .flatten()
         .filter(|id| *id > 0)
@@ -791,6 +792,12 @@ mod tests {
         assert!(s.handle(&dir, &local).is_none(), "a folder");
         let huge = file_clip(9, json!([{ "attr": 128, "name": "a.png", "size": 11 * 1024 * 1024 }]));
         assert!(s.handle(&huge, &local).is_none(), "over the phone's 10 MB limit");
+        let unknown_size = file_clip(9, json!([{ "attr": 128, "name": "a.png" }]));
+        assert!(s.handle(&unknown_size, &local).is_none(), "missing size");
+        let missing_type = file_clip(9, json!([{ "name": "a.png", "size": 1 }]));
+        assert!(s.handle(&missing_type, &local).is_none(), "missing file type");
+        let zero_size = file_clip(9, json!([{ "attr": 128, "name": "a.png", "size": 0 }]));
+        assert!(s.handle(&zero_size, &local).is_none(), "empty image");
         let empty = file_clip(0, json!([{ "attr": 128, "name": "a.png", "size": 1 }]));
         assert!(s.handle(&empty, &local).is_none(), "clipId 0 is an empty clip");
         // (A text clip returns before the file-list check; it isn't run here because applying it
