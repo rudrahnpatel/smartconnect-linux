@@ -162,6 +162,42 @@ pub fn detect_lan_ips() -> Result<Vec<IpAddr>> {
     Ok(ips)
 }
 
+/// Kernel drivers of a phone's USB tethering link (the PC end of a cable connection).
+const USB_TETHER_DRIVERS: &[&str] = &["rndis_host", "cdc_ncm", "cdc_ether", "cdc_eem"];
+
+/// Whether a network interface is a phone's USB tethering link, from its driver in sysfs.
+pub fn is_usb_tether(ifname: &str) -> bool {
+    std::fs::read_link(format!("/sys/class/net/{ifname}/device/driver"))
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .is_some_and(|d| USB_TETHER_DRIVERS.contains(&d.as_str()))
+}
+
+/// The PC's IPv4 addresses on USB tethering links (a phone plugged in by cable).
+pub fn usb_tether_ips() -> Vec<IpAddr> {
+    let mut ips: Vec<IpAddr> = if_addrs::get_if_addrs()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|i| matches!(i.ip(), IpAddr::V4(_)) && is_usb_tether(&i.name))
+        .map(|i| i.ip())
+        .collect();
+    ips.sort();
+    ips.dedup();
+    ips
+}
+
+/// Whether `ip` is on one of this PC's USB tethering links (the phone's cable address).
+pub fn is_on_usb_tether(ip: IpAddr) -> bool {
+    let IpAddr::V4(ip) = ip else { return false };
+    if_addrs::get_if_addrs().unwrap_or_default().into_iter().any(|i| match i.addr {
+        if_addrs::IfAddr::V4(a) if is_usb_tether(&i.name) => {
+            let m = u32::from(a.netmask);
+            u32::from(a.ip) & m == u32::from(ip) & m
+        }
+        _ => false,
+    })
+}
+
 /// Whether the LAN came up or gained an address since the last look (a reason to retry now).
 pub fn gained_address(before: &[IpAddr], now: &[IpAddr]) -> bool {
     now.iter().any(|ip| !before.contains(ip))
@@ -206,6 +242,10 @@ pub async fn watch_system(daemon: Arc<Daemon>, refresh_ips: bool) {
             continue;
         }
         let gained = gained_address(&last_ips, &ips);
+        let usb = usb_tether_ips();
+        if usb.iter().any(|ip| ips.contains(ip) && !last_ips.contains(ip)) {
+            info!(?usb, "cable: the phone's USB tethering link is up; offering it in invites");
+        }
         last_ips = ips.clone();
         // Keep the old addresses while offline: an empty policy list makes the phone ignore invites.
         if refresh_ips && !ips.is_empty() {

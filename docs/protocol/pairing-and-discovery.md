@@ -336,7 +336,7 @@ transport of 9 and 10 is from code, not a capture):
 |---|---|---|
 | 0 | Cloud broker (Lenovo account) | Only with an account (not used by this project) |
 | 1, 7 | Bluetooth LE, phone as GATT server | **Yes** (OBSERVED on a device) |
-| 2, 6, 8 | Accessory / USB / file station | Not over a LAN |
+| 2, 6, 8 | Accessory / USB / file station | Not over a LAN; the phone's cable mode instead runs over USB tethering ([cable mode](#cable-mode-usb-tethering)) |
 | 3 | Wi-Fi, `/readyfor/mdns` | **No**: the server and the phone's mDNS advert stop when the app leaves the foreground (OBSERVED on a device: the app holds no listening TCP socket then, and a dial to its old port is refused) |
 | 9 | Cloud push | Only with an account |
 | 10 | Peer-to-peer tunnel of the account service | Only with an account |
@@ -603,6 +603,36 @@ BlueZ split it if the negotiated MTU is smaller (INFERRED).
   after pairing whose `token` was not the invite token (OBSERVED on a device). Windows instead
   re-validates the fresh token of each invite. Accepting by `realDeviceId` is weaker: any device
   that learns a paired phone's `realDeviceId` could connect as that phone (INFERRED risk).
+
+## Cable mode (USB tethering)
+
+The phone app's own cable mode (OBSERVED on a motorola edge 70 max; the genuine Windows PC's side
+was not captured, the replies below are the ones the phone accepts):
+
+1. The user plugs the phone in and picks **Smart Connect** in the phone's USB popup. The phone
+   switches its USB function to tethering (RNDIS; the PC sees a new network interface driven by
+   `rndis_host`) and runs a DHCP server on it.
+2. The phone browses mDNS **on the cable** for `_readyfor._tcp` (not `_readyformdns._tcp`). With no
+   answer it gives up after 30 to 45 s, turns tethering off and on again, and finally shows
+   "Unable to connect: disconnect the USB cable…".
+3. It resolves the advert and dials `wss://<pc-cable-ip>:<port>/readyfor/rdp` (TLS, the PC's
+   control-port certificate). The frames are plain JSON text, not sealed.
+4. Phone → PC: `{"action": 1, "serviceId": 1, "status": 1, "ver": 3, "deviceId": "<phone-nonce-id>",
+   "device": {"deviceId", "deviceName", "type": 1, "os": 1, "cap", "Timestamp"}}`. The PC answers in
+   the same shape with its own `deviceId` and device record (`type: 4`, `os: 6`, version fields).
+5. Phone → PC: a service 19 trigger, `{"cmd": 0, "serviceId": 19, "reqId": N, "errorCode": 0,
+   "scb": 0, "ver": 1, "wsPort": 0}`. The PC answers with an invite (as on `/readyfor/mdns`, but in
+   plain JSON) plus `serviceId: 19`, the echoed `reqId` and `errorCode: 0`.
+6. The phone dials `wss://<policy address>:<wsPort>/readyfor/` and runs the normal handshake. The
+   `/readyfor/rdp` socket stays open; the phone repeats its step-4 frame every 20 s.
+
+| Observation | Tag |
+|---|---|
+| An invite whose only reachable address is not on the cable (phone Wi-Fi off) gets `{"cmd": 2, "serviceId": 0, "errorCode": 65, "wsPort": 52020}` back and the phone shows the error. Offer the address the phone reached `/readyfor/rdp` on. | OBSERVED |
+| Each time tethering comes up, the phone gives the PC's RNDIS interface a new random MAC address, so DHCP hands out a new IP. A QR or invite carrying the cable address goes stale at the next replug unless the PC keeps a fixed MAC on that link. | OBSERVED |
+| The phone's `/readyfor/mdns` server does not listen on the cable address. | OBSERVED |
+| The phone dials a cable address listed under `wifi` in a QR, and labels that link Wi-Fi. A QR listing the cable address only under `usb` does not pair. | OBSERVED |
+| A Windows PC presumably answers `/readyfor/rdp` itself; the other Windows paths (`/readyfor/check`, `/readyfor/freerdp`, …) were not needed. | INFERRED |
 
 ## Not used by this project
 

@@ -21,7 +21,7 @@ use tokio_rustls::rustls::{self, ServerConfig};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::http::StatusCode;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::clipboard::{self, LocalClipboard};
 use crate::discovery;
@@ -271,7 +271,13 @@ impl Daemon {
 
     /// Records where the phone was last seen. A remembered `/readyfor/mdns` endpoint on another
     /// address (DHCP gave the phone a new lease) moves with it, keeping its port.
+    ///
+    /// A cable (USB tethering) address is not remembered: the phone's `/readyfor/mdns` server
+    /// listens on Wi-Fi only (OBSERVED: refused on the cable address while the app was open).
     pub fn remember_phone_ip(&self, phone: &str, ip: IpAddr) {
+        if crate::reconnect::is_on_usb_tether(ip) {
+            return;
+        }
         *self.phone_ip.lock().unwrap() = Some(ip);
         let moved = self.phone_mdns.lock().unwrap().get(phone).filter(|a| a.ip() != ip).map(|a| SocketAddr::new(ip, a.port()));
         if let Some(addr) = moved {
@@ -351,6 +357,7 @@ async fn handle(daemon: Arc<Daemon>, acceptor: TlsAcceptor, tcp: TcpStream, peer
     info!(%peer, "TCP connection");
     // The PC address the phone reached us on: helpers offer WebRTC candidates on it only.
     let local_ip = tcp.local_addr().ok().map(|a| a.ip().to_string());
+    let tls_local_ip = tcp.local_addr().ok().map(|a| a.ip());
     // Peek the first bytes (non-destructive, MSG_PEEK) so we can see what protocol the
     // client actually speaks: a TLS record starts 0x16 0x03; "GET " (0x47) is a plaintext
     // WebSocket/HTTP handshake. The phone is sending us non-TLS first bytes.
@@ -408,6 +415,10 @@ async fn handle(daemon: Arc<Daemon>, acceptor: TlsAcceptor, tcp: TcpStream, peer
     if uri.split('?').next() == Some(discovery::MDNS_PATH) {
         return discovery::serve(daemon, ws, peer).await;
     }
+    if uri.split('?').next() == Some(discovery::CABLE_PATH) {
+        let local = tls_local_ip.unwrap_or_else(|| daemon.ips().into_iter().next().unwrap_or(IpAddr::from([0, 0, 0, 0])));
+        return serve_cable(&daemon, ws, peer, local).await;
+    }
 
     let mut log = SessionLog::create(&daemon.session_dir, peer)?;
     let (mut tx, mut rx) = ws.split();
@@ -420,6 +431,8 @@ async fn handle(daemon: Arc<Daemon>, acceptor: TlsAcceptor, tcp: TcpStream, peer
     log.record("in", &text);
     let hello_msg: WsMsg = serde_json::from_str(&text).context("first frame is not a WsMsg")?;
     if hello_msg.service_id != SERVICE_MANAGER {
+        // Unknown first frames (e.g. the phone's cable mode on /readyfor/rdp): log them to learn the protocol.
+        info!(%peer, %uri, frame = %text.chars().take(4000).collect::<String>(), "unexpected first frame");
         bail!("first frame is for serviceId {}, expected 0", hello_msg.service_id);
     }
     let data = hello_msg.data.unwrap_or(Value::Null);
@@ -699,6 +712,70 @@ fn exchange_key(daemon: &Daemon, phone_id: &str, data: &Value, first_pair: bool)
             "verName": invite::VER_NAME,
         },
     }))
+}
+
+/// The phone's cable mode (OBSERVED on a device; the genuine PC's replies were not captured, these
+/// are the ones the phone accepts): it finds `_readyfor._tcp` on the USB tethering link, dials
+/// `/readyfor/rdp` and opens with `{action: 1, serviceId: 1, status: 1, ver: 3, device}`. We answer
+/// in the same shape with our device record. It then sends a service 19 `cmd 0` trigger; we answer
+/// with an invite whose only address is the one the phone reached us on, and the phone dials
+/// `/readyfor/` over the cable. It keeps this socket open for the session, repeating its `action`
+/// frame every 20 s.
+async fn serve_cable<S>(daemon: &Daemon, ws: tokio_tungstenite::WebSocketStream<S>, peer: SocketAddr, local: IpAddr) -> Result<()>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
+    let (mut tx, mut rx) = ws.split();
+    let mut replied = false;
+    while let Some(msg) = timeout(Duration::from_secs(60), rx.next()).await.context("cable: phone silent for 60 s")? {
+        let msg = msg?;
+        let text = match &msg {
+            Message::Text(t) => t.to_string(),
+            Message::Binary(b) => format!("<binary {} B: {}>", b.len(), b.iter().take(64).map(|x| format!("{x:02x}")).collect::<String>()),
+            Message::Close(c) => {
+                info!(%peer, close = ?c, "cable: phone closed");
+                break;
+            }
+            _ => continue,
+        };
+        let parsed: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+        // After the first, the phone repeats its `action` frame every 20 s as a heartbeat; it
+        // keeps the session without a reply to each (OBSERVED for several minutes).
+        if replied && parsed.get("action").is_some() {
+            debug!(%peer, "cable: heartbeat");
+            continue;
+        }
+        info!(%peer, frame = %text.chars().take(4000).collect::<String>(), "cable: <- phone");
+        // Service 19 cmd 0 is the phone's trigger ("send me an invite"): answer with the invite,
+        // echoing reqId, as on /readyfor/mdns but in plain JSON.
+        if parsed.get("serviceId").and_then(Value::as_i64) == Some(19) && parsed.get("cmd").and_then(Value::as_i64) == Some(0) {
+            // Offer the address the phone reached us on (the cable): the LAN list may lag a fresh link.
+            let mut inv = discovery::invite_json(&daemon.identity, &daemon.current_token(), &[local], daemon.ws_port);
+            inv["policies"] = json!([{ "wifi": [local.to_string()] }, { "usb": [local.to_string()] }]);
+            inv["serviceId"] = json!(19);
+            inv["reqId"] = parsed.get("reqId").cloned().unwrap_or(json!(1));
+            inv["errorCode"] = json!(0);
+            let reply = inv.to_string();
+            info!(%peer, frame = %reply.replace(&daemon.current_token(), "<token>"), "cable: -> phone (invite)");
+            tx.send(Message::text(reply)).await?;
+            continue;
+        }
+        if !replied {
+            let reply = json!({
+                "action": parsed.get("action").cloned().unwrap_or(json!(1)),
+                "deviceId": daemon.identity.device_id,
+                "serviceId": parsed.get("serviceId").cloned().unwrap_or(json!(1)),
+                "status": 1,
+                "ver": 3,
+                "device": invite::device_json(&daemon.identity, daemon.ble_address.as_deref()),
+            })
+            .to_string();
+            info!(%peer, frame = %reply, "cable: -> phone");
+            tx.send(Message::text(reply)).await?;
+            replied = true;
+        }
+    }
+    Ok(())
 }
 
 /// The genuine PC makes the phone reconnect ~5 s after a first pair: the phone shows a brand-new

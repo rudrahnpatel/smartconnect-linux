@@ -29,6 +29,24 @@ pub const VER_NAME: &str = "09.0.3.013.000";
 const OS_WINDOWS: i64 = 6;
 const TYPE_PC: i64 = 4;
 
+/// The invite's `policies`: where the phone may dial us. Every address goes under `wifi`: the
+/// phone dials a cable address listed there (OBSERVED on a device) but not one listed only under
+/// `usb` (OBSERVED: pairing then fails). Cable addresses also go under `usb`, the key the phone
+/// app reserves for a cable; the phone still labels such a connection Wi-Fi.
+pub fn policies(ips: &[IpAddr]) -> serde_json::Value {
+    policies_with(ips, &crate::reconnect::usb_tether_ips())
+}
+
+fn policies_with(ips: &[IpAddr], usb_tether: &[IpAddr]) -> serde_json::Value {
+    let wifi: Vec<String> = ips.iter().map(ToString::to_string).collect();
+    let usb: Vec<String> = ips.iter().filter(|ip| usb_tether.contains(ip)).map(ToString::to_string).collect();
+    let mut out = vec![json!({ "wifi": wifi })];
+    if !usb.is_empty() {
+        out.push(json!({ "usb": usb }));
+    }
+    serde_json::Value::Array(out)
+}
+
 pub struct Invite {
     pub token: String,
     pub expires: Instant,
@@ -51,7 +69,6 @@ impl Invite {
     /// `ble_address` is the PC's Bluetooth MAC; the phone drives the BLE pairing connection off
     /// `RemoteClient.bleAddress`, so without it the phone dials a stale stored address.
     pub fn qr_payload(&self, id: &Identity, ble_address: Option<&str>) -> String {
-        let ips: Vec<String> = self.ips.iter().map(ToString::to_string).collect();
         let ws_data = json!({
             // cmd:1 tells the phone to create the WebSocket and connect as client immediately
             // (the Windows "success" QR). cmd:0 instead makes the phone try a policy exchange that
@@ -67,7 +84,7 @@ impl Invite {
             "token": self.token,
             "fp": id.fp_base64(),
             "wsPort": self.ws_port,
-            "policies": [{ "wifi": ips }],
+            "policies": policies(&self.ips),
             "os": OS_WINDOWS,
             "type": TYPE_PC,
             "verCode": VER_CODE,
@@ -138,4 +155,20 @@ pub fn write_svg(payload: &str, path: &Path) -> Result<()> {
     // Owner-only: while valid, the QR's token lets any phone pair with this PC.
     crate::identity::write_private(path, image.as_bytes())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cable_addresses_are_offered_under_usb_too() {
+        let lan: IpAddr = "192.168.1.20".parse().unwrap();
+        let cable: IpAddr = "192.168.201.10".parse().unwrap();
+        assert_eq!(policies_with(&[lan], &[]), json!([{ "wifi": ["192.168.1.20"] }]));
+        assert_eq!(
+            policies_with(&[lan, cable], &[cable]),
+            json!([{ "wifi": ["192.168.1.20", "192.168.201.10"] }, { "usb": ["192.168.201.10"] }])
+        );
+    }
 }

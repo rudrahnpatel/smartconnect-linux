@@ -110,6 +110,19 @@ systemctl --user restart smartconnectd
 - `connect` answers `ok: true` once the invite is delivered. The phone then dials back by itself,
   usually within a second. `smartconnectd status` shows `"connected":true` when it has.
 
+## The cable connection doesn't work
+
+- **"Unable to connect: disconnect the USB cable…" after 30 to 45 s.** The phone found nothing on
+  the cable. Check that the daemon runs and logs `mdns: advertising _readyfor._tcp`: the phone looks
+  for that service on the cable. `avahi-publish` must be on the daemon's `PATH` (the AppImage ships
+  it in `~/.local/libexec/smartconnect-linux`). Let mDNS (udp 5353) and the control port through the
+  firewall on the cable interface too.
+- **The phone keeps reconnecting the USB link** (the kernel log shows the phone re-enumerating every
+  30 to 45 s): same cause; that is the phone retrying.
+- **Connect on a plugged-in phone fails after a replug.** The PC's cable address changed (see
+  [By cable](usage.md#by-cable) to keep it fixed), or the phone still has the old one: use the
+  phone's cable mode, or scan a new QR once.
+
 ## The phone isn't found over Bluetooth
 
 | Reply from `smartconnectd connect` | Meaning and fix |
@@ -248,6 +261,14 @@ For GStreamer-level detail, run the viewer by hand with
 | The Noctalia button shows "off" although Cross Control works | A client started by the daemon (from the phone's tile) is running. This is a known gap in the plugin; the GTK app's Display tab does show it. |
 | The pointer doesn't cross over everywhere on the edge | Only the highlighted part of the edge (where the phone touches the screen under *Phone position* on the Display tab) leads to the phone. Drag the phone to change it, or pass `--span 0:1`. |
 | The pointer is too fast or too slow on the phone | Use `--gain` (default 1.6). |
+
+## Some keys move the pointer on the phone
+
+If typing into the mirror, an app window, the virtual phone or Cross Control drops keys such as
+**u i o p, j k l, m**, or moves or clicks the phone's pointer instead, Android's **Mouse keys**
+accessibility setting is on: it turns those keys of a physical keyboard into pointer controls, and
+the PC's keyboard reaches the phone as one. Turn it off on the phone (search Settings for "Mouse
+keys"; usually under *System → Keyboard → Physical keyboard* or *Accessibility*).
 
 ## Phone files (~/Phone)
 
