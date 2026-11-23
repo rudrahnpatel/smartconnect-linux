@@ -29,6 +29,7 @@ mod ice;
 mod icons;
 mod keys;
 mod resize;
+mod rotation;
 mod views;
 
 use std::cell::RefCell;
@@ -173,6 +174,10 @@ struct SessState {
     /// Headless (background action) sessions: when to close.
     headless: Option<actions::HeadlessTimer>,
     resize: resize::ResizeDebouncer,
+    /// The display rotation the phone reported (svc 15 cmd 16, 0-3; see rotation.rs).
+    rotation: i64,
+    /// Whether the window currently has the shape of a quarter-turned picture.
+    window_turned: bool,
 }
 
 struct Session {
@@ -190,6 +195,8 @@ struct Session {
     title: Mutex<String>,
     tag: Mutex<Option<gst::Element>>,
     sink: Mutex<Option<gst::Element>>,
+    /// `videoflip` in the decode chain, turned by the phone's reported rotation.
+    flip: Mutex<Option<gst::Element>>,
     /// The video window's X11 id once known, and the title last written to it.
     xwin: Mutex<Option<(u32, String)>>,
 }
@@ -225,6 +232,7 @@ impl Session {
             title: Mutex::new(title),
             tag: Mutex::new(None),
             sink: Mutex::new(None),
+            flip: Mutex::new(None),
             xwin: Mutex::new(None),
         });
         {
@@ -285,7 +293,7 @@ impl Session {
         }
         println!("[{}] video arriving: {:?}", self.sid, pad.current_caps().map(|c| c.to_string()));
         let desc = format!(
-            "queue ! rtph264depay ! h264parse ! {} ! videoconvert name=conv ! taginject name=tag ! {} name=sink sync=false",
+            "queue ! rtph264depay ! h264parse ! {} ! videoconvert name=conv ! videoflip name=flip ! taginject name=tag ! {} name=sink sync=false",
             pick_decoder(),
             pick_sink()
         );
@@ -294,14 +302,23 @@ impl Session {
         tag.set_property("tags", title_tags(&self.title.lock().unwrap()));
         *self.tag.lock().unwrap() = Some(tag);
         *self.sink.lock().unwrap() = bin.by_name("sink");
+        *self.flip.lock().unwrap() = bin.by_name("flip");
+        {
+            // A rotation reported before the video arrived applies from the first frame.
+            let mut st = self.st.lock().unwrap();
+            st.window_turned = rotation::is_turned(st.rotation, rotation::mode_from_env());
+            self.apply_rotation(st.rotation);
+        }
         self.pipeline.add(&bin)?;
         // Link before starting the bin, then bring it up to the pipeline's state.
         pad.link(&bin.static_pad("sink").context("decoder bin has no sink pad")?)?;
         bin.sync_state_with_parent()?;
         // The video sink sends pointer/keyboard navigation events upstream; turn them into input.
-        let conv = bin.by_name("conv").context("no videoconvert")?;
+        // Tapped on videoflip's output side, before it maps them back into the sent (unturned)
+        // frame: the phone wants positions in the upright picture it shows, not in that frame.
+        let flip = bin.by_name("flip").context("no videoflip")?;
         let w = Arc::downgrade(self);
-        conv.static_pad("src").context("no src pad")?.add_probe(gst::PadProbeType::EVENT_UPSTREAM, move |_, info| {
+        flip.static_pad("src").context("no src pad")?.add_probe(gst::PadProbeType::EVENT_UPSTREAM, move |_, info| {
             if let (Some(s), Some(gst::PadProbeData::Event(ev))) = (w.upgrade(), &info.data) {
                 if ev.type_() == gst::EventType::Navigation {
                     s.on_navigation(ev);
@@ -310,6 +327,22 @@ impl Session {
             gst::PadProbeReturn::Ok
         });
         Ok(())
+    }
+
+    /// The phone turned (or turned back) the display: turn the picture to match. The window changes
+    /// shape on the next host tick (`sync_window_shape`).
+    fn set_rotation(&self, rot: i64) {
+        let changed = std::mem::replace(&mut self.st.lock().unwrap().rotation, rot) != rot;
+        if changed {
+            println!("[{}] display rotation {rot}: turning the picture {}", self.sid, rotation::direction(rot, rotation::mode_from_env()));
+            self.apply_rotation(rot);
+        }
+    }
+
+    fn apply_rotation(&self, rot: i64) {
+        if let Some(flip) = self.flip.lock().unwrap().as_ref() {
+            flip.set_property_from_str("video-direction", rotation::direction(rot, rotation::mode_from_env()));
+        }
     }
 
     fn set_title(&self, title: &str) {
@@ -626,6 +659,44 @@ impl X11 {
         let _ = c.flush();
     }
 
+    /// The top-level window titled `title` (the video sink's own window, however it was made).
+    fn find_window(&self, title: &str) -> Option<u32> {
+        use x11rb::connection::Connection as _;
+        use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
+        let named = |win: u32| -> bool {
+            [self.net_wm_name, AtomEnum::WM_NAME.into()].into_iter().any(|prop| {
+                self.conn
+                    .get_property(false, win, prop, AtomEnum::ANY, 0, 64)
+                    .ok()
+                    .and_then(|c| c.reply().ok())
+                    .is_some_and(|r| r.value.starts_with(title.as_bytes()))
+            })
+        };
+        let root = self.conn.setup().roots.first()?.root;
+        let mut todo = vec![(root, 0u8)];
+        // The window manager may wrap the sink's window in a frame with the same title: take the
+        // innermost match, which is the one the sink draws in.
+        let mut found: Option<(u8, u32)> = None;
+        while let Some((win, depth)) = todo.pop() {
+            if win != root && named(win) && found.is_none_or(|(d, _)| depth > d) {
+                found = Some((depth, win));
+            }
+            if depth < 3 {
+                if let Some(tree) = self.conn.query_tree(win).ok().and_then(|c| c.reply().ok()) {
+                    todo.extend(tree.children.into_iter().map(|c| (c, depth + 1)));
+                }
+            }
+        }
+        found.map(|(_, win)| win)
+    }
+
+    fn resize_window(&self, win: u32, (w, h): (u32, u32)) {
+        use x11rb::connection::Connection as _;
+        use x11rb::protocol::xproto::{ConfigureWindowAux, ConnectionExt as _};
+        let _ = self.conn.configure_window(win, &ConfigureWindowAux::new().width(w).height(h));
+        let _ = self.conn.flush();
+    }
+
     /// The window's client-area size in pixels.
     fn window_size(&self, win: u32) -> Option<(u32, u32)> {
         use x11rb::protocol::xproto::ConnectionExt as _;
@@ -648,6 +719,29 @@ fn gl_window_handle(sink: &gst::Element) -> u32 {
 }
 
 impl Session {
+    /// Gives the window the shape of the turned picture: a phone turned to landscape gets a
+    /// landscape window, with the long and short sides swapped.
+    fn sync_window_shape(&self, x: &X11) {
+        let (rot, turned) = {
+            let st = self.st.lock().unwrap();
+            (st.rotation, st.window_turned)
+        };
+        let want = rotation::is_turned(rot, rotation::mode_from_env());
+        if want == turned || self.sink.lock().unwrap().is_none() {
+            return;
+        }
+        let known = self.xwin.lock().unwrap().as_ref().map(|(w, _)| *w);
+        let win = known.or_else(|| x.find_window(&self.title.lock().unwrap()));
+        let Some((win, (w, h))) = win.and_then(|win| Some((win, x.window_size(win)?))) else { return };
+        // Some sinks (xvimagesink) reshape their own window when the picture's shape changes;
+        // only a window still the wrong way round gets swapped. A stream is portrait unless turned.
+        if (w > h) != want {
+            println!("[{}] window {w}x{h} → {h}x{w} (display rotation {rot})", self.sid);
+            x.resize_window(win, (h, w));
+        }
+        self.st.lock().unwrap().window_turned = want;
+    }
+
     /// Applies the current title to the X11 window (finds the window the first time).
     fn sync_x11_title(&self, x: &X11) {
         let title = self.title.lock().unwrap().clone();
@@ -1014,6 +1108,9 @@ impl Host {
                 if let Some(s) = mine {
                     println!("[{}] cmd {cmd}: rotation {} display {}", s.sid, body["rotation"], body["displayId"]);
                     s.learn_display(&body);
+                    if let Some(r) = body.get("rotation").and_then(Value::as_i64) {
+                        s.set_rotation(r);
+                    }
                 }
             }
             26 => {
@@ -1151,6 +1248,7 @@ impl Host {
         if let Some(x) = &self.x11 {
             for s in self.sessions.values() {
                 s.sync_x11_title(x);
+                s.sync_window_shape(x);
             }
             if self.resize && now.duration_since(self.last_resize_poll) >= RESIZE_POLL {
                 self.last_resize_poll = now;
