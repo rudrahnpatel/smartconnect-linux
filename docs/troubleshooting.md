@@ -228,6 +228,25 @@ Other problems:
 | The *Apps* page shows initials instead of the phone's icons | The daemon downloads them on each connection; look for `app icons:` in `journalctl --user -u smartconnectd`. A `fetch failed` with a connection or TLS error usually means the one-shot offer expired before the download started; run `smartconnect-fex fetch-app-icons` to try again now. Nothing logged: the phone didn't send its app list (it skips it for a secondary Android user), or `SMARTCONNECT_APP_ICONS=0` is set. |
 | The Noctalia **Mirror screen** button flips back while the window stays open | The panel ran the viewer, the viewer handed the request to the stream host and exited, so the panel thinks mirroring stopped. Close the window to stop mirroring. |
 
+### Streamed app stops responding after switching windows
+
+If a streamed app stops accepting input after switching away and back, try the XVideo sink.
+This workaround was verified on Ubuntu 26.04 with GNOME and XWayland. It preserves the video's
+aspect ratio when you resize the window.
+
+Check that the sink is installed with `gst-inspect-1.0 --exists xvimagesink`. If it is available and
+you run the systemd user service, create
+`~/.config/systemd/user/smartconnectd.service.d/mirror-sink.conf` with:
+
+```ini
+[Service]
+Environment="MIRROR_SINK=xvimagesink force-aspect-ratio=true"
+```
+
+Run `systemctl --user daemon-reload` and `systemctl --user restart smartconnectd.service`.
+The restart closes active streams. Reconnect the phone and reopen the app. To restore the default
+sink, remove this drop-in file, reload systemd and restart the service again.
+
 For GStreamer-level detail, run the viewer by hand with
 `GST_DEBUG='3,webrtc*:5' smartconnect-mirror`.
 
