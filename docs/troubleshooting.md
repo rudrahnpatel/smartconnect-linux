@@ -224,6 +224,7 @@ Other problems:
 | The window closes with `ICE down > 5 s` | Phone and PC lost each other on the network (Wi-Fi roaming, sleep). Start it again. |
 | `start of <pkg> timed out` | The phone didn't start that app within 20 s. Try again, or open the app on the phone first. |
 | An app or virtual-phone window shows the picture sideways after the app turned to landscape | Update to a build with rotation support (see [Rotation](usage.md#screen-share-and-mobile-desktop-tiles)). If it turns the wrong way, set `SMARTCONNECT_MIRROR_ROTATION=invert` in the daemon's environment and restart it. |
+| The window stays landscape after leaving a full-screen video | The phone sent no turn back to portrait, so the app left the virtual display landscape (seen with YouTube's full-screen player and Back). Press Home on the virtual phone, or turn the app back; the window follows when the phone reports it. |
 | After rotating, clicks land in the wrong place | Please report it with your phone model; `SMARTCONNECT_MIRROR_ROTATION=off` returns to the old behaviour. |
 | An app window flickers or the stream restarts after resizing it | Window resize is opt-in and not verified on a device. Unset `SMARTCONNECT_MIRROR_RESIZE` (or drop `--resize`) and restart the host. |
 | `--list-apps` prints `the phone did not answer; showing the cached list` | The phone is busy or not connected. The cached list in `~/.cache/smartconnect/apps.json` is still usable. |

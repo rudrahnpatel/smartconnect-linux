@@ -364,7 +364,9 @@ about the turn, so the viewer does the turning. Mouse clicks and typing follow t
 If a phone turns the picture the wrong way round, set `SMARTCONNECT_MIRROR_ROTATION=invert` in the
 daemon's environment; `=off` leaves the picture as the phone sends it. Verified on a motorola
 edge 70 max with the virtual phone and a landscape video app. Turning your own phone doesn't turn
-a virtual phone: it is a separate screen that only turns when the app on it does.
+a virtual phone: it is a separate screen that only turns when the app on it does. The window
+follows what the phone reports, so if an app leaves the display landscape the window stays
+landscape too: YouTube's full-screen player, left with Back, does this until you press Home.
 
 **Window resize** (🟡, opt-in): with `SMARTCONNECT_MIRROR_RESIZE=1` in the daemon's environment (or
 a host started as `smartconnect-mirror --host --resize`), resizing an app window asks the phone to

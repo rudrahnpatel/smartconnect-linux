@@ -40,5 +40,8 @@ where you point. Turning back restores it.
 
 - Verified on a motorola edge 70 max: virtual phone, landscape video app, rotation 0 to 1 and back,
   clicks across the whole window.
+- Observed, not a bug here: YouTube's full-screen player left with Back keeps the virtual display
+  landscape. The phone sent no `cmd 16` after that (nothing but heartbeats in the daemon log), so
+  the window stayed landscape; Home made the phone report rotation 0 and the window turned back.
 - Not verified: rotations 2 and 3 (direction is inferred), the whole-screen mirror, app streaming
   windows, `glimagesink` (the default sink; the test machine used `xvimagesink`).
