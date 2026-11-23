@@ -167,10 +167,11 @@ paired already. Verified on a motorola edge 70 max.
 The phone gives the cable link a new random MAC address each time it is plugged in, so without
 help your PC's address on the cable would change too. Cable mode doesn't mind (the phone asks for a
 fresh invite), but the phone's Connect button and a QR scanned while plugged in remember the old
-address. So the daemon keeps it fixed: the first time it sees the phone's link it creates the
-NetworkManager profile `smartconnect-phone-usb` (owned by your user; it matches the `rndis_host`
-driver, gives the link one fixed MAC and never takes the default route) and switches the link over
-to it. It logs `cable: created the NetworkManager profile` and `cable: switching the phone's link`.
+address. So the daemon keeps it fixed: when it starts, it creates the NetworkManager profile
+`smartconnect-phone-usb` (owned by your user; it matches the `rndis_host` driver, gives the link one
+fixed MAC and never takes the default route), which NetworkManager then uses whenever the phone is
+plugged in. A phone that is already plugged in when the daemon starts is moved onto it. It logs
+`cable: created the NetworkManager profile` and `cable: switching the phone's link`.
 Without NetworkManager (`nmcli`) nothing happens. A profile of that name that you made yourself is
 left alone. Pass `--no-cable-profile` to turn this off, and remove the profile with
 `nmcli connection delete smartconnect-phone-usb`.

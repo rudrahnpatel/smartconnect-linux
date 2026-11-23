@@ -117,6 +117,10 @@ systemctl --user restart smartconnectd
   for that service on the cable. `avahi-publish` must be on the daemon's `PATH` (the AppImage ships
   it in `~/.local/libexec/smartconnect-linux`). Let mDNS (udp 5353) and the control port through the
   firewall on the cable interface too.
+- **The phone hangs on "Connecting"** and the daemon logs nothing from it: check that the PC's
+  service resolves with `avahi-browse -rt _readyfor._tcp` (it should list the cable address). The
+  daemon publishes it again whenever the phone's link comes up; if it still doesn't resolve,
+  restart the daemon.
 - **The phone keeps reconnecting the USB link** (the kernel log shows the phone re-enumerating every
   30 to 45 s): same cause; that is the phone retrying.
 - **Connect on a plugged-in phone fails after a replug.** The PC's cable address changed (the daemon keeps it fixed with the

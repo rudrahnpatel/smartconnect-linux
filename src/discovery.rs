@@ -246,6 +246,50 @@ pub fn advertise_cable(id: &Identity, port: u16) -> Result<Child> {
     publish(id, port, CABLE_SERVICE_TYPE)
 }
 
+/// Keeps [`advertise_cable`] up and publishes it afresh each time a phone's USB tethering link
+/// gains an address. avahi is meant to follow new interfaces on its own, but a registration that
+/// was still being probed when the link vanished (the phone retries by dropping and re-adding
+/// it) stayed stuck: the phone's PTR query got an answer and its SRV/TXT queries never did, and
+/// the phone hung on "Connecting" (OBSERVED). A fresh registration on a settled link answers.
+pub async fn keep_cable_advert(daemon: Arc<Daemon>, port: u16) {
+    let id = &daemon.identity;
+    let mut child = match advertise_cable(id, port) {
+        Ok(c) => Some(c),
+        Err(e) => {
+            tracing::warn!("mdns: not advertising for the cable, the phone's cable mode won't find us: {e:#}");
+            return;
+        }
+    };
+    let mut seen = tether_links();
+    let mut tick = tokio::time::interval(Duration::from_secs(2));
+    loop {
+        tick.tick().await;
+        let now = tether_links();
+        let new_link = now.iter().any(|l| !seen.contains(l));
+        seen = now;
+        if !new_link {
+            continue;
+        }
+        // Let avahi pick up the new address before registering again.
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        drop(child.take()); // kill_on_drop withdraws the old registration
+        match advertise_cable(id, port) {
+            Ok(c) => child = Some(c),
+            Err(e) => tracing::warn!("mdns: couldn't re-advertise for the cable: {e:#}"),
+        }
+    }
+}
+
+/// (interface, IPv4 address) of each phone USB tethering link that has an address.
+fn tether_links() -> Vec<(String, IpAddr)> {
+    if_addrs::get_if_addrs()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|i| matches!(i.ip(), IpAddr::V4(_)) && crate::reconnect::is_usb_tether(&i.name))
+        .map(|i| (i.name.clone(), i.ip()))
+        .collect()
+}
+
 fn publish(id: &Identity, port: u16, service: &str) -> Result<Child> {
     let ts = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     let txt = [

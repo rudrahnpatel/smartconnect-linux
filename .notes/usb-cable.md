@@ -54,11 +54,13 @@ sequenceDiagram
   `usb` alone pairing fails (the phone then labels the link Wi-Fi, a cosmetic issue).
 - **Changing address per plug-in.** The phone randomises the RNDIS MAC, so DHCP gives a new IP each
   time. Cable mode copes (fresh invite every time); for QR/Connect a NetworkManager profile with a
-  cloned MAC keeps it fixed. `src/cable_link.rs` does this: it polls `/sys/class/net` every 3 s for
-  `rndis_host` links; for a new link that NetworkManager brought up under another profile it
-  creates `smartconnect-phone-usb` if missing (`connection.permissions user:<me>`, so polkit's
-  `settings.modify.own` suffices, no admin prompt) and runs `nmcli connection up ... ifname`. One try
-  per interface name. Only `rndis_host` is matched: `cdc_ether`/`cdc_ncm` also drive docks and
+  cloned MAC keeps it fixed. `src/cable_link.rs` does this: at daemon start it creates
+  `smartconnect-phone-usb` if missing (`connection.permissions user:<me>`, so polkit's
+  `settings.modify.own` suffices, no admin prompt), so NetworkManager auto-activates it (priority
+  50) on every plug-in, and moves an `rndis_host` link that is already up under another profile onto
+  it. It never switches a link later: the first version switched on plug-in, which takes the link
+  down for a few seconds while the phone is starting cable mode, and the phone hung on
+  "Connecting". Only `rndis_host` is matched: `cdc_ether`/`cdc_ncm` also drive docks and
   dongles, which must keep their MAC and default route. An existing profile of that name is never
   touched, so a hand-made one wins. `--no-cable-profile` opts out.
 
@@ -66,3 +68,13 @@ sequenceDiagram
 
 - Other phones and app versions; NCM instead of RNDIS tethering.
 - What the genuine Windows PC sends on `/readyfor/rdp`.
+
+## Stuck mDNS registration (and the re-advertise)
+
+A capture of a phone hung on "Connecting" showed it asking `PTR _readyfor._tcp` (answered) and then
+`SRV`/`TXT` for `Linux PC._readyfor._tcp` three times, unanswered; `avahi-browse -r` couldn't resolve
+it on any interface, loopback included. The `avahi-publish` registration had been made while the
+cable link was being torn down and never recovered; restarting it fixed resolution at once.
+`discovery::keep_cable_advert` now owns the `_readyfor._tcp` publisher and restarts it about a
+second after any phone tethering link gains an address (interface name or IPv4 changes). Verified:
+two replugs in a row connected, each followed by a fresh registration.

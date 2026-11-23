@@ -5,14 +5,10 @@
 //! scanned while plugged in remember a stale one. A NetworkManager profile that matches the link by
 //! driver and clones one fixed MAC onto it keeps the address the same.
 //!
-//! `run` creates that profile (owned by this user, so no admin rights are needed) the first time it
-//! sees a phone's tethering link, and switches a link NetworkManager already brought up with its
-//! default profile over to it. It does nothing without `nmcli`, and leaves an existing profile of
+//! `run` creates that profile at startup (owned by this user, so no admin rights are needed), and
+//! switches a phone link NetworkManager already brought up with another profile over to it. It does nothing without `nmcli`, and leaves an existing profile of
 //! the same name alone, so a hand-made one wins. Only `rndis_host` is matched: `cdc_ether` and
 //! `cdc_ncm` also drive USB docks and Ethernet dongles, which must keep their own MAC and routes.
-
-use std::collections::HashSet;
-use std::time::Duration;
 
 use tokio::process::Command;
 use tracing::{debug, info, warn};
@@ -22,7 +18,6 @@ pub const PROFILE: &str = "smartconnect-phone-usb";
 const DRIVER: &str = "rndis_host";
 /// Locally administered, unicast; the bytes spell "SCL".
 const CLONED_MAC: &str = "02:53:43:4c:00:01";
-const WATCH_EVERY: Duration = Duration::from_secs(3);
 
 /// `nmcli connection add` arguments for the profile, owned by `user`.
 pub fn add_args(user: &str) -> Vec<String> {
@@ -103,48 +98,41 @@ async fn create_profile() -> bool {
     }
 }
 
-/// Watches for the phone's tethering link and puts it on the fixed-MAC profile.
+/// Creates the profile up front, so NetworkManager picks it the moment the phone is plugged in,
+/// then moves a phone link that is already up onto it.
+///
+/// A link is only ever switched when the daemon starts: switching takes it down for a few seconds,
+/// and a phone that is mid-way through connecting by cable gives up and hangs on "Connecting".
+/// Later plug-ins get the profile from NetworkManager directly (it outranks the default wired
+/// profile); a link that still comes up under another profile is the user's choice and left alone.
 pub async fn run() {
     if nmcli(&["--version"]).await.is_none() {
         debug!("cable: no nmcli; the PC's cable address will change on each plug-in");
         return;
     }
-    // Links already handled (switched, or failed to switch): one try each. The phone's random MAC
-    // makes the interface name new on each plug-in on most systems, so a replug tries again.
-    let mut handled: HashSet<String> = HashSet::new();
-    let mut tick = tokio::time::interval(WATCH_EVERY);
-    loop {
-        tick.tick().await;
-        let ifaces = tether_ifaces();
-        handled.retain(|i| ifaces.contains(i));
-        for iface in ifaces {
-            if handled.contains(&iface) {
-                continue;
+    match profile_exists().await {
+        Some(true) => {}
+        Some(false) => {
+            if !create_profile().await {
+                return;
             }
-            let Some(active) = active_profile(&iface).await else { continue }; // not up yet
-            handled.insert(iface.clone());
-            if active == PROFILE {
-                continue;
-            }
-            match profile_exists().await {
-                Some(true) => {}
-                Some(false) => {
-                    if !create_profile().await {
-                        continue;
-                    }
-                }
-                None => continue,
-            }
-            info!(iface, from = active, "cable: switching the phone's link to {PROFILE}");
-            match nmcli(&["connection", "up", PROFILE, "ifname", &iface]).await {
-                Some(out) if out.status.success() => {}
-                Some(out) => warn!(
-                    iface,
-                    "cable: couldn't switch the link to {PROFILE}: {}",
-                    String::from_utf8_lossy(&out.stderr).trim()
-                ),
-                None => {}
-            }
+        }
+        None => return,
+    }
+    for iface in tether_ifaces() {
+        let Some(active) = active_profile(&iface).await else { continue };
+        if active == PROFILE {
+            continue;
+        }
+        info!(iface, from = active, "cable: switching the phone's link to {PROFILE}");
+        match nmcli(&["connection", "up", PROFILE, "ifname", &iface]).await {
+            Some(out) if out.status.success() => {}
+            Some(out) => warn!(
+                iface,
+                "cable: couldn't switch the link to {PROFILE}: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ),
+            None => {}
         }
     }
 }

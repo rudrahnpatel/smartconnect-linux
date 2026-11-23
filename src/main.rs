@@ -207,13 +207,7 @@ async fn main() -> Result<()> {
         }
     };
     // Cable: the phone's cable mode looks for `_readyfor._tcp` on the USB tethering link.
-    let _cable_advert = match smartconnect::discovery::advertise_cable(&daemon.identity, args.port) {
-        Ok(child) => Some(child),
-        Err(e) => {
-            tracing::warn!("mdns: not advertising for the cable, the phone's cable mode won't find us: {e:#}");
-            None
-        }
-    };
+    tokio::spawn(smartconnect::discovery::keep_cable_advert(daemon.clone(), args.port));
     {
         let daemon = daemon.clone();
         tokio::spawn(async move {
