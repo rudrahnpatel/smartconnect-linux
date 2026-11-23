@@ -54,7 +54,13 @@ sequenceDiagram
   `usb` alone pairing fails (the phone then labels the link Wi-Fi, a cosmetic issue).
 - **Changing address per plug-in.** The phone randomises the RNDIS MAC, so DHCP gives a new IP each
   time. Cable mode copes (fresh invite every time); for QR/Connect a NetworkManager profile with a
-  cloned MAC keeps it fixed (documented in `docs/usage.md#by-cable`, not done by the daemon).
+  cloned MAC keeps it fixed. `src/cable_link.rs` does this: it polls `/sys/class/net` every 3 s for
+  `rndis_host` links; for a new link that NetworkManager brought up under another profile it
+  creates `smartconnect-phone-usb` if missing (`connection.permissions user:<me>`, so polkit's
+  `settings.modify.own` suffices, no admin prompt) and runs `nmcli connection up ... ifname`. One try
+  per interface name. Only `rndis_host` is matched: `cdc_ether`/`cdc_ncm` also drive docks and
+  dongles, which must keep their MAC and default route. An existing profile of that name is never
+  touched, so a hand-made one wins. `--no-cable-profile` opts out.
 
 ## Not verified
 

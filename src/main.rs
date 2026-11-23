@@ -46,6 +46,10 @@ struct Args {
     /// changes the adapter's power state: it's skipped while Bluetooth is off.
     #[arg(long)]
     no_ble_wake: bool,
+    /// Don't create or use the NetworkManager profile `smartconnect-phone-usb`, which keeps this
+    /// PC's address on the phone's USB cable fixed across plug-ins.
+    #[arg(long)]
+    no_cable_profile: bool,
     /// Experimental: extra phone feature tiles to advertise in the svc 25 `cap` map, as service
     /// ids (`SVC` or `SVC=FLAGS`), e.g. `--extra-tiles 20` for the File explorer tile.
     /// Untested on a device; the service must also be in `serviceVersions`.
@@ -162,6 +166,9 @@ async fn main() -> Result<()> {
     tokio::spawn(daemon.clone().invite_loop());
     // Reconnect promptly after a resume, a network change, or Bluetooth being switched on.
     tokio::spawn(smartconnect::reconnect::watch_system(daemon.clone(), refresh_ips));
+    if !args.no_cable_profile {
+        tokio::spawn(smartconnect::cable_link::run());
+    }
     if !args.no_ble_wake {
         let daemon = daemon.clone();
         tokio::spawn(async move {

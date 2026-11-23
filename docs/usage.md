@@ -164,16 +164,16 @@ the cable connection in the Smart Connect app). The phone turns on USB tethering
 mDNS on the cable and connects over it; nothing needs to be started on the PC. The phone must be
 paired already. Verified on a motorola edge 70 max.
 
-Your PC's address on the cable changes each time the phone is plugged in, because the phone gives
-the link a new random MAC address. Cable mode doesn't mind (the phone asks for a fresh invite), but
-the phone's Connect button and a QR scanned while plugged in remember the old address. To keep the
-address fixed, let NetworkManager give that link one MAC address:
-
-```sh
-nmcli connection add type ethernet con-name smartconnect-phone-usb match.driver rndis_host \
-  ethernet.cloned-mac-address 02:53:43:4c:00:01 ipv4.method auto ipv4.never-default yes \
-  ipv6.method auto ipv6.never-default yes connection.autoconnect-priority 50
-```
+The phone gives the cable link a new random MAC address each time it is plugged in, so without
+help your PC's address on the cable would change too. Cable mode doesn't mind (the phone asks for a
+fresh invite), but the phone's Connect button and a QR scanned while plugged in remember the old
+address. So the daemon keeps it fixed: the first time it sees the phone's link it creates the
+NetworkManager profile `smartconnect-phone-usb` (owned by your user; it matches the `rndis_host`
+driver, gives the link one fixed MAC and never takes the default route) and switches the link over
+to it. It logs `cable: created the NetworkManager profile` and `cable: switching the phone's link`.
+Without NetworkManager (`nmcli`) nothing happens. A profile of that name that you made yourself is
+left alone. Pass `--no-cable-profile` to turn this off, and remove the profile with
+`nmcli connection delete smartconnect-phone-usb`.
 
 The daemon logs `cable: the phone's USB tethering link is up` when it sees the link, and lists that
 address in its invites.

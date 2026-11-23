@@ -119,8 +119,9 @@ systemctl --user restart smartconnectd
   firewall on the cable interface too.
 - **The phone keeps reconnecting the USB link** (the kernel log shows the phone re-enumerating every
   30 to 45 s): same cause; that is the phone retrying.
-- **Connect on a plugged-in phone fails after a replug.** The PC's cable address changed (see
-  [By cable](usage.md#by-cable) to keep it fixed), or the phone still has the old one: use the
+- **Connect on a plugged-in phone fails after a replug.** The PC's cable address changed (the daemon keeps it fixed with the
+  `smartconnect-phone-usb` NetworkManager profile: check its log for `cable:` lines, see
+  [By cable](usage.md#by-cable)), or the phone still has the old one: use the
   phone's cable mode, or scan a new QR once.
 
 ## The phone isn't found over Bluetooth

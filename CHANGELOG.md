@@ -10,6 +10,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The READM
 
 ### Added
 
+- The daemon keeps the PC's address on the phone's USB cable fixed: it creates the NetworkManager profile `smartconnect-phone-usb` (fixed MAC, never the default route) the first time it sees the phone's link and moves the link onto it. `--no-cable-profile` turns this off.
 - Connection by USB cable: the phone's cable mode now connects. The daemon advertises `_readyfor._tcp` (what the phone looks for on the USB tethering link) and answers the phone on `/readyfor/rdp` with an invite carrying the cable address. Invites also list addresses on a phone's USB tethering link under `usb`. Verified on a motorola edge 70 max.
 - Troubleshooting: Android's Mouse keys setting makes keys such as u i o p j k l m move the phone's pointer when typing from the PC.
 
