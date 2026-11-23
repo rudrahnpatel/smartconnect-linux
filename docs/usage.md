@@ -357,6 +357,17 @@ Each phone app opens in its own Linux window, titled after the app (for example
 Input in app windows uses the same code as the mirror window, but hasn't been verified separately.
 Closing a window ends that app's stream. Window icons aren't set yet.
 
+**Rotation** (🟡): when the phone turns the app or the virtual phone to landscape, the window turns
+with it: the picture is turned upright and the window changes shape (long and short sides swap).
+The phone doesn't send a rotated picture: it keeps sending the portrait frame and tells the PC
+about the turn, so the viewer does the turning. Mouse clicks and typing follow the turned picture.
+If a phone turns the picture the wrong way round, set `SMARTCONNECT_MIRROR_ROTATION=invert` in the
+daemon's environment; `=off` leaves the picture as the phone sends it. Verified on a motorola
+edge 70 max with the virtual phone and a landscape video app. Turning your own phone doesn't turn
+a virtual phone: it is a separate screen that only turns when the app on it does. The window
+follows what the phone reports, so if an app leaves the display landscape the window stays
+landscape too: YouTube's full-screen player, left with Back, does this until you press Home.
+
 **Window resize** (🟡, opt-in): with `SMARTCONNECT_MIRROR_RESIZE=1` in the daemon's environment (or
 a host started as `smartconnect-mirror --host --resize`), resizing an app window asks the phone to
 resize that app's virtual display to match, once the new size has held for a moment. It is off by
@@ -1106,6 +1117,7 @@ Read by `smartconnectd`. The helpers it starts inherit its environment, so their
 | `SMARTCONNECT_CROSS_EDGE` | Edge used when the phone's tile starts Cross Control, overriding the saved phone position (`crosscontrol.json`). |
 | `SMARTCONNECT_BACKGROUND_ACTIONS=0` | *helper:* notification action buttons open a window. |
 | `SMARTCONNECT_MIRROR_RESIZE=1` | *helper:* resize app displays to their windows. |
+| `SMARTCONNECT_MIRROR_ROTATION` | *helper:* `off` doesn't turn the picture when the phone rotates a display; `invert` turns it the other way. |
 | `SMARTCONNECT_ICE_ADDRESSES` | *helper:* addresses offered for video (mirror, app streaming, phone display). |
 | `SMARTCONNECT_OSK` | *helper:* on-screen keyboard for the phone display's keyboard button. |
 | `SMARTCONNECT_FILES_TRACE=1` | `smartconnect-files serve`: hex-dump the NFS traffic (debugging). |

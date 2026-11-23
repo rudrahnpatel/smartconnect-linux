@@ -129,6 +129,7 @@ Noctalia Shell on Arch Linux. Other phones, app versions and desktops may behave
 | App streaming started from the PC | ✅ | Each phone app in its own Linux window (`smartconnect-mirror --app`). |
 | App streaming from the phone's tile and the GTK app's *Apps* page | 🟡 | |
 | Real app icons for the *Apps* page | ✅ | Downloaded from the phone on every connection into `~/.cache/smartconnect-linux/app-icons/`. `smartconnect-fex fetch-app-icons` does it by hand. |
+| Rotation of app and virtual-phone windows | 🟡 | The window turns with the app when it goes landscape, picture and input included. Verified on one phone (`SMARTCONNECT_MIRROR_ROTATION=off\|invert`). |
 | App window resize | 🟡 | Opt-in (`SMARTCONNECT_MIRROR_RESIZE=1`): the phone resizes the app's virtual display to the window. |
 | Screen share and Mobile desktop tiles | 🟡 | Shown by default. Mobile desktop has been started from the phone; Screen share is less tested. |
 

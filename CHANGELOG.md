@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The READM
 
 ## [Unreleased]
 
+### Added
+
+- App and virtual-phone windows turn with the app: when the phone rotates the display, the viewer turns the picture upright and swaps the window's sides, and mouse input follows. The phone keeps sending the portrait frame and only reports the turn, so before this the picture stayed sideways. `SMARTCONNECT_MIRROR_ROTATION=off` or `invert` change it. Verified on a motorola edge 70 max.
+
 ### Fixed
 
 - Clipboard Linux → phone on GNOME: GNOME has no data-control protocol, so `wl-paste --watch` refused to run and copies on the PC never reached the phone. The daemon now follows the clipboard through Xwayland (XFixes) there; password-manager copies are still skipped.
