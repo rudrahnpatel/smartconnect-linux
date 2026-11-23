@@ -8,8 +8,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The READM
 
 ## [Unreleased]
 
+### Added
+
+- The daemon keeps the PC's address on the phone's USB cable fixed: it creates the NetworkManager profile `smartconnect-phone-usb` (fixed MAC, never the default route) when it starts (NetworkManager then uses it on every plug-in) and moves an already-connected phone link onto it. `--no-cable-profile` turns this off.
+- Connection by USB cable: the phone's cable mode now connects. The daemon advertises `_readyfor._tcp` (what the phone looks for on the USB tethering link) and answers the phone on `/readyfor/rdp` with an invite carrying the cable address. Invites also list addresses on a phone's USB tethering link under `usb`. Verified on a motorola edge 70 max.
+- Troubleshooting: Android's Mouse keys setting makes keys such as u i o p j k l m move the phone's pointer when typing from the PC.
+
 ### Fixed
 
+- Cable mode no longer hangs on "Connecting" when the daemon's `_readyfor._tcp` registration gets stuck: the daemon publishes it afresh each time a phone's USB tethering link comes up.
+- The phone's address on a USB cable is no longer remembered as its Wi-Fi endpoint; the daemon kept dialing it there, where the phone doesn't listen.
 - Clipboard Linux → phone on GNOME: GNOME has no data-control protocol, so `wl-paste --watch` refused to run and copies on the PC never reached the phone. The daemon now follows the clipboard through Xwayland (XFixes) there; password-manager copies are still skipped.
 - Phone display lag: frames are now converted and scaled on the GPU (VA-API `vapostproc`; multi-threaded on the CPU otherwise) and the encoder runs in its own thread. Before, 60 fps did not fit the per-frame time and frames queued up (measured on the PC: 53 ms → 21 ms per frame, no more dropped frames).
 - GTK Display tab: the settings groups no longer leave empty space below them.

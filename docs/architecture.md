@@ -70,7 +70,7 @@ The daemon also uses these system services:
 |---|---|
 | Desktop notifications | `org.freedesktop.Notifications` on the session bus (zbus): `Notify`, `CloseNotification`, and the `ActionInvoked`/`NotificationClosed` signals. |
 | Clipboard | `wl-paste --type text --watch …` (child process) and `wl-copy`. |
-| mDNS | `avahi-publish -s … _readyformdns._tcp` and `avahi-browse -r -p -k _readyformdns._tcp` (child processes). |
+| mDNS | `avahi-publish -s … _readyformdns._tcp` and `… _readyfor._tcp` (cable mode), and `avahi-browse -r -p -k _readyformdns._tcp` (child processes). |
 | Bluetooth LE | BlueZ over D-Bus (`bluer`). It acts as a GATT central for the Connect wake, and as an optional peripheral without `--no-ble`. |
 | PC lock | Noctalia's `qs ipc … lockScreen lock`, `loginctl lock-session <graphical session>` or `--lock-command`, then polling `loginctl show-session <id> -p LockedHint`; a desktop notification when nothing locked. |
 | Hotspot | `nmcli dev wifi connect …` / `nmcli connection delete …`. |
@@ -85,7 +85,7 @@ starts these tasks:
 | TLS listener | `server.rs` | Accepts TCP on `--port`, does the TLS handshake (15 s limit) and the WebSocket upgrade. It routes `/readyfor/mdns` to discovery and every other `/readyfor/…` path to a session. |
 | Invite loop | `server.rs` | Keeps a valid pairing token. It renders a fresh QR (terminal + SVG) whenever the token expires. |
 | Control socket | `control.rs` | Serves `smartconnectd.sock`, one task per client. Also starts the SMS collector (`sms.rs`). |
-| mDNS advertiser and watcher | `discovery.rs` | Publishes `_readyformdns._tcp`. It remembers paired phones' adverts and dials them back when allowed. |
+| mDNS advertiser and watcher | `discovery.rs` | Publishes `_readyformdns._tcp`, and `_readyfor._tcp` for the phone's cable mode (answered on `/readyfor/rdp` in `server.rs`). It remembers paired phones' adverts and dials them back when allowed. |
 | Clipboard watcher | `clipboard.rs` | Follows the Wayland clipboard. Only runs when `WAYLAND_DISPLAY` is set. |
 | PC lock, Hotspot | `pc_lock.rs`, `hotspot.rs` | React to their services' messages from the phone. |
 | Helpers | `helpers.rs` | Supervise the stream host, and start Cross Control, the phone display or the webcam helper when the phone asks. |
@@ -475,7 +475,7 @@ keeps the phone's 30 s watchdog happy. See [webcam](protocol/webcam.md) and `.no
 | Phone files mount | the mount folder (default `~/Phone`), FUSE | `smartconnect-files mount` |
 | Phone files log | `$XDG_RUNTIME_DIR/smartconnect-files.log` (mounts started by the GTK app) | GTK app |
 | File Station identity | `$XDG_DATA_HOME/smartconnect-linux/files-identity/` (`cert.der`, `key.der`; 0700/0600) | `smartconnect-files` |
-| mDNS advert | `_readyformdns._tcp` via avahi | daemon |
+| mDNS advert | `_readyformdns._tcp` and `_readyfor._tcp` via avahi | daemon |
 | Control socket | `$XDG_RUNTIME_DIR/smartconnectd.sock` | daemon |
 | Stream host socket | `$XDG_RUNTIME_DIR/smartconnect-mirror.sock` | `smartconnect-mirror --host` |
 | Shared stream instance id | `$XDG_RUNTIME_DIR/smartconnect-mirror.instance` | mirror processes |

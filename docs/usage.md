@@ -157,6 +157,28 @@ Wi-Fi could look connected for many minutes.
 **Disconnect is respected.** After a Disconnect from either side, the daemon stops reconnecting on
 its own. The next Connect from either side ends that state.
 
+### By cable
+
+Plug the phone in with a USB cable and pick **Smart Connect** in the phone's USB popup (or start
+the cable connection in the Smart Connect app). The phone turns on USB tethering, finds the PC over
+mDNS on the cable and connects over it; nothing needs to be started on the PC. The phone must be
+paired already. Verified on a motorola edge 70 max.
+
+The phone gives the cable link a new random MAC address each time it is plugged in, so without
+help your PC's address on the cable would change too. Cable mode doesn't mind (the phone asks for a
+fresh invite), but the phone's Connect button and a QR scanned while plugged in remember the old
+address. So the daemon keeps it fixed: when it starts, it creates the NetworkManager profile
+`smartconnect-phone-usb` (owned by your user; it matches the `rndis_host` driver, gives the link one
+fixed MAC and never takes the default route), which NetworkManager then uses whenever the phone is
+plugged in. A phone that is already plugged in when the daemon starts is moved onto it. It logs
+`cable: created the NetworkManager profile` and `cable: switching the phone's link`.
+Without NetworkManager (`nmcli`) nothing happens. A profile of that name that you made yourself is
+left alone. Pass `--no-cable-profile` to turn this off, and remove the profile with
+`nmcli connection delete smartconnect-phone-usb`.
+
+The daemon logs `cable: the phone's USB tethering link is up` when it sees the link, and lists that
+address in its invites.
+
 ## Tray icon and background running
 
 Status: 🟡 (implemented; needs a system-tray host, which the Noctalia/Quickshell bar provides).

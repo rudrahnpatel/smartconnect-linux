@@ -71,6 +71,7 @@ for service traffic. Details are in [pairing-and-discovery.md](pairing-and-disco
 |---|---|
 | mDNS | Both sides advertise `_readyformdns._tcp.local`. The TXT record carries a rotating device id and the certificate fingerprint (hex). |
 | `/readyfor/mdns` | A TLS WebSocket endpoint on each side that takes one binary, AES-256-GCM sealed frame. The PC serves it on its advertised SRV port; the phone serves it only while the app is in the foreground. |
+| Cable | The phone's cable mode turns on USB tethering and browses `_readyfor._tcp` on it, then dials `/readyfor/rdp` on the PC. See [cable mode](pairing-and-discovery.md#cable-mode-usb-tethering). |
 | Bluetooth LE | The phone advertises service `0x5246`. The PC connects as a GATT central and writes the same sealed invite to characteristic `0x0722`. This works while the app is in the background. |
 
 ### Other endpoints on Windows
@@ -79,7 +80,8 @@ Windows runs a second HTTPS server on the port it advertises over mDNS. Besides 
 it serves `/readyfor/check`, `/readyfor/rdp`, `/readyfor/rpc/`, `/readyfor/webcam`,
 `/readyfor/freerdp` and `/readyfor/firewallDone` (OBSERVED in the Windows app). Their roles are not
 documented here; in a genuine pair the phone makes one HTTPS request to that port, purpose unknown
-(OBSERVED). This project serves only `/readyfor/` and `/readyfor/mdns`, both on the control port.
+(OBSERVED). This project serves `/readyfor/`, `/readyfor/mdns` and `/readyfor/rdp` (cable mode), all on the
+control port.
 
 ## Message envelope
 

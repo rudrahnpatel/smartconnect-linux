@@ -102,6 +102,7 @@ Noctalia Shell on Arch Linux. Other phones, app versions and desktops may behave
 | Feature | Status | Notes |
 |---|---|---|
 | Pairing by QR code | ✅ | Scan a QR from the Smart Connect app; the PC then appears in the phone's device list. |
+| Connection by USB cable | ✅ | The phone's cable mode (pick Smart Connect in the phone's USB popup): it finds the PC over USB tethering and connects over the cable. Verified on a motorola edge 70 max. The PC's cable address changes per plug-in unless fixed, see [usage](docs/usage.md#by-cable). |
 | Reconnect over Wi-Fi and Bluetooth LE | ✅ | The phone's Connect button, the daemon dialing the phone back over Wi-Fi (mDNS), and a Bluetooth LE wake that reaches the phone while Smart Connect is in the background. |
 | Automatic reconnect | ✅ | After drops, at startup and after a failed Connect, with Smart Connect in the background on the phone (Bluetooth LE wake, about 5 to 6 s). Early retries (phone back on Wi-Fi, resume, network change, Bluetooth switched on) and dropping a dead session after 70 s of silence are unit-tested, not yet seen on a device. A Disconnect from either side is respected. |
 | Feature tiles for this PC on the phone | ✅ | App streaming, Cross Control, PC lock, Hotspot and Webcam. |

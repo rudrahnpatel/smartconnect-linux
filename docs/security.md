@@ -33,7 +33,7 @@ security the phone offers, which limits what this project can change.
 | Direction | What | Protection |
 |---|---|---|
 | Inbound TCP 52020 (`--port`), **all interfaces** | TLS WebSocket for pairing, sessions (`/readyfor/`) and Connect-button triggers (`/readyfor/mdns`). | TLS 1.2/1.3 (rustls). A session needs a valid pairing token or a known phone id (see below). |
-| mDNS advert (`_readyformdns._tcp` via avahi) | TXT records: this run's salted device id, the PC name (`--name`), the certificate fingerprint (hex), static type fields, a timestamp. | Public on the LAN by design. The fingerprint is stable, so the PC can be recognised on the network across restarts. |
+| mDNS adverts (`_readyformdns._tcp` and, for the cable, `_readyfor._tcp` via avahi; same TXT) | TXT records: this run's salted device id, the PC name (`--name`), the certificate fingerprint (hex), static type fields, a timestamp. | Public on the LAN by design. The fingerprint is stable, so the PC can be recognised on the network across restarts. |
 | Outbound TCP to the phone's discovery port | One sealed invite when reconnecting over Wi-Fi. | AES-256-GCM sealing with the per-pair key. The phone's TLS certificate is throwaway and isn't checked. |
 | Bluetooth LE (Connect wake) | The PC scans, connects to the phone as a GATT central, writes one sealed invite and disconnects. | The same AES-GCM sealing. The adapter's power state is never changed. |
 | Bluetooth LE peripheral (only without `--no-ble`) | Advertises service 0x5246 with this run's device id. The GATT server only logs writes. Also powers the adapter on at startup. | Experimental and not needed. The systemd unit passes `--no-ble`. |
